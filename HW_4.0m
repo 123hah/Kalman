@@ -9,9 +9,8 @@ S(:,1)=[1000,10,4000,-8];
 Z=zeros(2,N);%传感器对位置的观测
 Z(:,1)=[X(1,1),X(3,1)];%观测初始化
 
-delta_w=1e-3; %如果增大这个参数，目标真实轨迹就是曲线了
-Q=diag([1,1,1,1]);%过程噪声均值
-R=[1200 -500;-500 300];%观测噪声均值
+Q=diag([T^2/2 T T^2/2 T]);%过程噪声协方差矩阵
+R=[1200 -500;-500 300];%观测噪声协方差矩阵
 
 phi=[1,T,0,0;0,1,0,0;0,0,1,T;0,0,0,1];%状态转移矩阵
 H=[1,0,0,0;0,0,1,0];%观测矩阵
@@ -22,11 +21,11 @@ Xn=zeros(4,0);
 Err_Observation_MC = zeros(1,N);
 Err_KalmanFilter_MC = zeros(1,N);
 for k = 1 : NumMC
-
     delta_r = 2;
     r = delta_r .*randn(1,N);
     ax = randn(1,N);
     ay = randn(1,N);
+    a0 = 0;
     a = [ax ;ay] ;
     delta_theta = deg2rad(0.56);
     theta = delta_theta *randn(1,N);
@@ -40,21 +39,27 @@ for k = 1 : NumMC
         r0 = sqrt(x^2 + y^2);
         dx = dr * sin(theta0) + r0 * cos(theta0) * dtheta;
         dy = dr * cos(theta0) - r0 * sin(theta0) * dtheta;
-        S(:,i)=phi*S(:,i-1);%目标理论轨迹
-        
-        X(:,i)=phi*S(:,i-1) + sk * a(:,i-1);
-        Z(:,i)=H*X(:,i) + [dx dy ]';
-        
+        if i < 0.8*N
+            a0 = 0;
+            S(:,i)=phi*S(:,i-1) + sk * a0 * [1; 1];%目标理论轨迹
+            X(:,i)=phi*S(:,i-1) + sk * a(:,i-1);
+            Z(:,i)=H*X(:,i) + [dx dy ]';
+        else
+            a0 = 0;
+            S(:,i)=phi*S(:,i-1) + sk * a0 * [1; 1];%目标理论轨迹
+            X(:,i)=phi*S(:,i-1) + sk * (a(:,i-1));
+            Z(:,i)=H*X(:,i) + [dx dy ]';
+        end
 %         X(:,i)=phi*S(:,i-1)+ [dx 0 dy 0]';%目标真实轨迹
 % 
 %         Z(:,i)=H*X(:,i);%对目标的观测
     end
-
+    
     % Kalman 滤波
     Xkf=zeros(4,N);
     Xkf(:,1)=X(:,1);%卡尔曼滤波状态初始化
     M(1,:)=Xkf(:,1);
-    P0=100e-2*eye(4);%协方差阵初始化
+    P0=eye(4);%协方差阵初始化
 
 
     for i=2:N
@@ -68,9 +73,11 @@ for k = 1 : NumMC
     end
     % 误差分析
     for i=1:N
-
-        Err_Observation(i)=RMS(S(:,i),Z(:,i));%滤波前的误差
-        Err_KalmanFilter(i)=RMS(Xkf(:,i),S(:,i));%滤波后的误差
+% RMSx
+%         Err_Observation(i)=RMS(S(:,i),Z(:,i));%滤波前的误差
+%         Err_KalmanFilter(i)=RMS(Xkf(:,i),S(:,i));%滤波后的误差
+        Err_Observation(i)= RMSx(S(:,i),Z(:,i));%滤波前的误差
+        Err_KalmanFilter(i)= RMSx(Xkf(:,i),S(:,i));%滤波后的误差
     end
 
     Err_Observation_MC(:) = Err_Observation_MC(:) + Err_Observation(:);
@@ -90,17 +97,17 @@ ylabel('纵坐标 Y/m');
  
 figure
 hold on;box on;
-plot(Err_Observation);
+% plot(Err_Observation);
 plot(Err_KalmanFilter);
-legend('滤波前误差','滤波后误差');
+% legend('滤波前误差','滤波后误差');
 xlabel('观测时间/s');
 ylabel('误差值');
 
 figure
 hold on;box on;
-plot((Err_Observation_MC(2:end)/NumMC).^0.5);
-plot((Err_KalmanFilter_MC(2:end)/NumMC).^0.5);
-legend('滤波前误差','滤波后误差');
+% plot(Err_Observation_MC(2:end)*(1/NumMC).^0.5);
+plot(Err_KalmanFilter_MC(2:end)*(1/NumMC).^0.5);
+% legend('滤波前误差','滤波后误差');
 xlabel('观测时间/s');
 ylabel('误差值');
 title('MC')
@@ -111,5 +118,15 @@ function dist=RMS(X1,X2)
         dist=sqrt((X1(1)-X2(1))^2+(X1(3)-X2(2))^2);
     else
         dist=sqrt((X1(1)-X2(1))^2+(X1(3)-X2(3))^2);
+    end
+end
+function dist=RMSx(X1,X2)
+        dist=(X1(1)-X2(1))^2;
+end
+function dist=RMSy(X1,X2)
+    if length(X2)<=2
+        dist=sqrt((X1(3)-X2(2))^2);
+    else
+        dist=sqrt((X1(3)-X2(3))^2);
     end
 end

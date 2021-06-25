@@ -22,11 +22,11 @@ Xn=zeros(4,0);
 Err_Observation_MC = zeros(1,N);
 Err_KalmanFilter_MC = zeros(1,N);
 for k = 1 : NumMC
-
     delta_r = 2;
     r = delta_r .*randn(1,N);
     ax = randn(1,N);
     ay = randn(1,N);
+    a0 = 0;
     a = [ax ;ay] ;
     delta_theta = deg2rad(0.56);
     theta = delta_theta *randn(1,N);
@@ -40,16 +40,22 @@ for k = 1 : NumMC
         r0 = sqrt(x^2 + y^2);
         dx = dr * sin(theta0) + r0 * cos(theta0) * dtheta;
         dy = dr * cos(theta0) - r0 * sin(theta0) * dtheta;
-        S(:,i)=phi*S(:,i-1);%目标理论轨迹
-        
-        X(:,i)=phi*S(:,i-1) + sk * a(:,i-1);
-        Z(:,i)=H*X(:,i) + [dx dy ]';
-        
+        if i < 0.8*N
+            a0 = 0;
+            S(:,i)=phi*S(:,i-1) + sk * a0 * [1; 1];%目标理论轨迹
+            X(:,i)=phi*S(:,i-1) + sk * a(:,i-1);
+            Z(:,i)=H*X(:,i) + [dx dy ]';
+        else
+            a0 = 0.75;
+            S(:,i)=phi*S(:,i-1) + sk * a0 * [1; 1];%目标理论轨迹
+            X(:,i)=phi*S(:,i-1) + sk * (a(:,i-1));
+            Z(:,i)=H*X(:,i) + [dx dy ]';
+        end
 %         X(:,i)=phi*S(:,i-1)+ [dx 0 dy 0]';%目标真实轨迹
 % 
 %         Z(:,i)=H*X(:,i);%对目标的观测
     end
-
+    
     % Kalman 滤波
     Xkf=zeros(4,N);
     Xkf(:,1)=X(:,1);%卡尔曼滤波状态初始化
@@ -98,8 +104,8 @@ ylabel('误差值');
 
 figure
 hold on;box on;
-plot((Err_Observation_MC(2:end)/NumMC).^0.5);
-plot((Err_KalmanFilter_MC(2:end)/NumMC).^0.5);
+plot(Err_Observation_MC(2:end)*(1/NumMC).^0.5);
+plot(Err_KalmanFilter_MC(2:end)*(1/NumMC).^0.5);
 legend('滤波前误差','滤波后误差');
 xlabel('观测时间/s');
 ylabel('误差值');

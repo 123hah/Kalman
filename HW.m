@@ -39,8 +39,8 @@ end
 % 误差分析
 for i=1:N
 
-    Err_Observation(i)=RMS(X(:,i),Z(:,i));%滤波前的误差
-    Err_KalmanFilter(i)=RMS(X(:,i),Xkf(:,i));%滤波后的误差
+    Err_Observation(i)=RMSx(Z(:,i),X(:,i));%滤波前的误差
+    Err_KalmanFilter(i)=RMSx(X(:,i),Xkf(:,i));%滤波后的误差
 end
 
 
@@ -70,4 +70,7 @@ function dist=RMS(X1,X2)
     else
         dist=sqrt((X1(1)-X2(1))^2+(X1(3)-X2(3))^2);
     end
+end
+function dist=RMSx(X1,X2)
+        dist=(X1(1)-X2(1))^2;
 end
